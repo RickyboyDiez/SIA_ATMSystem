@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
+from tkinter import messagebox
 
 import mysql.connector
 
@@ -30,6 +31,8 @@ def show_frame(frame):
 
 global accPin
 def login():
+    global accountNumber
+    global accountbal
     db = mysql.connector.connect(
         host="localhost",
         user="root",
@@ -39,21 +42,25 @@ def login():
     cursor = db.cursor()
 
     login_pin = loginFrame_inp.get()
-    query = 'SELECT `acc_name`, `balance`, `pin` from `person` WHERE `pin` = %s'
+    query = 'SELECT `acc_name`, `balance`, `pin`, `acc_num` from `person` WHERE `pin` = %s'
     val = (login_pin,)
     cursor.execute(query, val)
     user = cursor.fetchone()
     acc_name = user[0] if user else "N/A"
     accBalance = user[1] if user else 0
+    accountbal = accBalance
     accPin = user[2] if user else 0
+    accountNumber = user[3] if user else 0
     if user is not None:
         show_frame(mainFrame)
         balanceFrame_name.config(text=acc_name)
         balanceFrame_bal.config(text=accBalance)
         print(accPin)
+        print(accountbal)
         newpin(accPin)
     else:
         loginFrame_inp.delete(0, tk.END)
+
 
 def balance():
     db = mysql.connector.connect(
@@ -100,14 +107,53 @@ def deposit(amount):
         cursor.execute(update_query, (balance, pin))
         db.commit()
 
-        # Display success message
-        depositFrame_message.config(text="Withdrawal successful!")
-        show_frame(transactionFrame)
-
     # Close the database connection
     cursor.close()
     db.close()
 
+def transfer():
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="atm"
+    )
+    cursor = db.cursor()
+
+    transfer_name = transferFrame_inp.get()
+    transfer_num = transferFrame_inp1.get()
+    transfer_amount = float(transferFrame_inp2.get())
+    main_num = accountNumber
+    main_balance = accountbal
+    balance = transfer_amount
+
+    query = "SELECT acc_num, acc_name, balance from person where acc_num = %s and acc_name = %s"
+    cursor.execute(query, (transfer_num, transfer_name,))
+    result = cursor.fetchone()
+    if result:
+        numTransfer = result[0]
+        nameTransfer = result[1]
+        bal = result[2]
+        if main_num != numTransfer:
+            newBalance = balance + bal
+            query = "UPDATE person SET balance = %s WHERE acc_num = %s AND acc_name = %s"
+            cursor.execute(query, (newBalance, transfer_num, transfer_name))
+            print('test')
+            db.commit()
+            query = "SELECT balance from person WHERE acc_num = %s"
+            cursor.execute(query, (main_num,))
+            result2 = cursor.fetchone()
+            print('test1')
+            if result2:
+                print('test2')
+                dedBalance = result2[0]
+                dedNewBalance = dedBalance - transfer_amount
+                query = "UPDATE person SET balance = %s WHERE acc_num = %s"
+                cursor.execute(query, (dedNewBalance, main_num))
+                print(dedNewBalance)
+                db.commit()
+
+    show_frame(transactionFrame)
 
 def withdraw(amount):
     # Retrieve the account number from the input field
@@ -137,9 +183,6 @@ def withdraw(amount):
             cursor.execute(update_query, (balance, pin))
             db.commit()
 
-            # Display success message
-            withdrawFrame_message.config(text="Withdrawal successful!")
-            show_frame(transactionFrame)
         else:
             # Insufficient balance
             withdrawFrame_message.config(text="Insufficient balance!")
@@ -191,14 +234,27 @@ for frame in (transcompFrame, transactionFrame, loginFrame, mainFrame, depositFr
 
 
 # loginFrame
-loginFrame_logo = tk.Label(loginFrame, text="LOGO IMAGE HERE")
-loginFrame_logo.pack(side='top', pady=100)
-loginFrame_inp = tk.Entry(loginFrame, justify='center', show='*')
-loginFrame_inp.pack(side='top', ipadx=150, ipady=10)
-loginFrame_accname = tk.Label(loginFrame, text="Please enter your PIN")
-loginFrame_accname.pack(side='top', pady=20)
-loginFrame_button = tk.Button(loginFrame, text="Login", width=15, command=lambda: login())
-loginFrame_button.pack(ipadx=120, ipady=20, pady=30)
+loginFrame.configure(background="#023048")
+# logo
+loginFrame_logo = tk.Label(loginFrame, image=logo_image, borderwidth=0, highlightthickness=0)
+loginFrame_logo.grid(row=0, column=0, columnspan=2, sticky="n")
+loginFrame.grid_rowconfigure(0, weight=1)
+loginFrame.grid_columnconfigure(0, weight=1)
+
+loginFrame_inp = tk.Entry(loginFrame, justify='center', show='*', width=50)
+loginFrame_inp.grid(row=1, column=0, columnspan=6, sticky="n", ipady=10)
+loginFrame_inp.grid_rowconfigure(0, weight=1)
+loginFrame_inp.grid_columnconfigure(0, weight=1)
+
+loginFrame_accname = tk.Label(loginFrame, text="Please enter your PIN", bg="#023048", fg="white")
+loginFrame_accname.grid(row=2, column=0, columnspan=6, sticky="n")
+loginFrame_accname.grid_rowconfigure(0, weight=1)
+loginFrame_accname.grid_columnconfigure(0, weight=1)
+
+loginFrame_button = ttk.Button(loginFrame, text="Login", width=15, command=lambda: login())
+loginFrame_button.grid(row=3, column=0, columnspan=6, sticky="n", pady=100)
+loginFrame_button.grid_rowconfigure(0, weight=1)
+loginFrame_button.grid_columnconfigure(0, weight=1)
 
 # mainFrame
 mainFrame.configure(background="#023048")
@@ -352,7 +408,7 @@ transferFrame_amount.grid(row=6, column=0, columnspan=6, sticky="n")
 transferFrame_amount.grid_rowconfigure(0, weight=1)
 transferFrame_amount.grid_columnconfigure(0, weight=1)
 
-transferFrame_obutton = ttk.Button(transferFrame, text="Transfer", width=15, command=lambda: show_frame(mainFrame))
+transferFrame_obutton = ttk.Button(transferFrame, text="Transfer", width=15, command=lambda: transfer())
 transferFrame_obutton.grid(row=7, column=0, columnspan=6, sticky="n", ipadx=120, ipady=20, pady=30)
 transferFrame_obutton.grid_rowconfigure(0, weight=1)
 transferFrame_obutton.grid_columnconfigure(0, weight=1)
@@ -373,14 +429,10 @@ transactionFrame_question.grid_rowconfigure(0, weight=1)
 transactionFrame_question.grid_columnconfigure(0, weight=1)
 
 transactionFrame_ybutton = ttk.Button(transactionFrame, text="YES", width=15, command=lambda: show_frame(mainFrame))
-transactionFrame_ybutton.grid(row=2, column=0, ipadx=0, ipady=10, pady=10)
-transactionFrame_ybutton.grid_rowconfigure(0, weight=1)
-transactionFrame_ybutton.grid_columnconfigure(0, weight=1)
+transactionFrame_ybutton.grid(row=2, column=0,sticky="w", ipadx=0, ipady=10, pady=10)
 
 transactionFrame_nbutton = ttk.Button(transactionFrame, text="NO", width=15, command=lambda: transcomp())
-transactionFrame_nbutton.grid(row=2, column=1, columnspan=6, sticky="n", ipadx=10, ipady=10, pady=10)
-transactionFrame_nbutton.grid_rowconfigure(0, weight=1)
-transactionFrame_nbutton.grid_columnconfigure(0, weight=1)
+transactionFrame_nbutton.grid(row=2, column=1, sticky="e", ipadx=10, ipady=10, pady=100)
 
 
 # transactionFrame
@@ -392,7 +444,7 @@ transcompFrame.grid_rowconfigure(0, weight=1)
 transcompFrame.grid_columnconfigure(0, weight=1)
 
 transcompFrame_question = tk.Label(transcompFrame, text="TRANSACTION COMPLETE", bg="#023048", fg="white", font=('Arial 20 bold'))
-transcompFrame_question.grid(row=0, column=0, columnspan=6, sticky="n")
+transcompFrame_question.grid(row=1, column=0, columnspan=6, sticky="n", pady=200)
 transcompFrame_question.grid_rowconfigure(0, weight=1)
 transcompFrame_question.grid_columnconfigure(0, weight=1)
 
