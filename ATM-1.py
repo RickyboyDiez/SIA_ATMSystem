@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
-from tkinter import messagebox
 
 import mysql.connector
 
@@ -12,20 +11,11 @@ mydb = mysql.connector.connect(
     database="atm"
 )
 
-# mycursor = mydb.cursor()
-# account_number = "123456789"
-# query = "SELECT acc_name, balance FROM person WHERE acc_num = '{account_number}'"
-# mycursor.execute(query)
-#
-# result = mycursor.fetchone()
-# account_name = result[0] if result else "N/A"
-# testBalance = result[1] if result else 0
-
-
 def newpin(amount):
     global pinNew
     pinNew = amount
 
+#function to display another frame
 def show_frame(frame):
     frame.tkraise()
 
@@ -55,12 +45,11 @@ def login():
         show_frame(mainFrame)
         balanceFrame_name.config(text=acc_name)
         balanceFrame_bal.config(text=accBalance)
-        print(accPin)
-        print(accountbal)
         newpin(accPin)
     else:
         loginFrame_inp.delete(0, tk.END)
-
+        loginFrame_accname.config(text="Invalid PIN", fg="white", bg="#023048", font=("Arial", 14, "bold"))
+        loginFrame_accname.after(2000, revert_text)
 
 def balance():
     db = mysql.connector.connect(
@@ -81,7 +70,46 @@ def balance():
     balanceFrame_bal.config(text=accBalance)
     show_frame(balanceFrame)
 
-def deposit(amount):
+def deposit(amount=None):
+    # Retrieve the account number from the input field
+    # pin = pinNew
+
+    # Connect to the MySQL database
+    db = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="atm"
+    )
+    cursor = db.cursor()
+
+    # Check if the account exists
+    query = "SELECT balance FROM person WHERE pin = %s"
+    cursor.execute(query, (pinNew,))
+    result = cursor.fetchone()
+
+    if result:
+        balance = result[0]
+        if amount is None:
+            amount = float(depositFrame_inp.get())  # Get the value from withdrawFrame_inp as a float
+
+        # Update the account balance
+        balance = balance + amount
+        update_query = "UPDATE person SET balance = %s WHERE pin = %s"
+        cursor.execute(update_query, (balance, pinNew))
+        db.commit()
+
+        # Display success message
+        depositFrame_message.config(text="Withdrawal successful!")
+        depositFrame.after(2000, lambda: show_frame(transactionFrame))
+        withdrawFrame_message.after(2000, clear_message)
+
+    # Close the database connection
+    cursor.close()
+    db.close()
+
+
+def withdraw(amount=None):
     # Retrieve the account number from the input field
     pin = pinNew
 
@@ -101,15 +129,64 @@ def deposit(amount):
 
     if result:
         balance = result[0]
-        # Update the account balance
-        balance = balance + amount
-        update_query = "UPDATE person SET balance = %s WHERE pin = %s"
-        cursor.execute(update_query, (balance, pin))
-        db.commit()
+
+        if amount is None:
+            amount = float(withdrawFrame_inp.get())  # Get the value from withdrawFrame_inp as a float
+
+        if balance >= amount:
+            # Update the account balance
+            balance = balance - amount
+            update_query = "UPDATE person SET balance = %s WHERE pin = %s"
+            cursor.execute(update_query, (balance, pin))
+            db.commit()
+
+            # Display success message
+            withdrawFrame_message.config(text="Withdrawal successful!")
+            withdrawFrame.after(2000, lambda: show_frame(transactionFrame))
+            withdrawFrame_message.after(2000, clear_message)
+        else:
+            # Insufficient balance
+            withdrawFrame_message.config(text="Insufficient balance!")
+    else:
+        # Account not found
+        withdrawFrame_message.config(text="Account not found!")
 
     # Close the database connection
     cursor.close()
     db.close()
+
+def revert_text():
+    loginFrame_accname.config(text="Please enter your PIN")
+
+def handle_deposit(event):
+    deposit()
+
+def handle_withdraw(event):
+    withdraw()
+
+def withdraw_frame(event):
+    if withdrawFrame_inp.get() == "":
+        show_frame(mainFrame)
+
+def deposit_frame(event):
+    if depositFrame_inp.get() == "":
+        show_frame(mainFrame)
+
+def transfer_frame(event):
+    if transferFrame_inp.get() == "":
+        show_frame(mainFrame)
+
+def transfer1_frame(event):
+    if transferFrame_inp1.get() == "":
+        show_frame(mainFrame)
+
+def transfer2_frame(event):
+    if transferFrame_inp2.get() == "":
+        show_frame(mainFrame)
+
+def clear_message():
+    withdrawFrame_message.config(text="")
+    depositFrame_message.config(text="")
 
 def transfer():
     db = mysql.connector.connect(
@@ -119,14 +196,12 @@ def transfer():
         database="atm"
     )
     cursor = db.cursor()
-
     transfer_name = transferFrame_inp.get()
     transfer_num = transferFrame_inp1.get()
     transfer_amount = float(transferFrame_inp2.get())
     main_num = accountNumber
     main_balance = accountbal
     balance = transfer_amount
-
     query = "SELECT acc_num, acc_name, balance from person where acc_num = %s and acc_name = %s"
     cursor.execute(query, (transfer_num, transfer_name,))
     result = cursor.fetchone()
@@ -152,48 +227,7 @@ def transfer():
                 cursor.execute(query, (dedNewBalance, main_num))
                 print(dedNewBalance)
                 db.commit()
-
     show_frame(transactionFrame)
-
-def withdraw(amount):
-    # Retrieve the account number from the input field
-    pin = pinNew
-
-    # Connect to the MySQL database
-    db = mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="atm"
-    )
-    cursor = db.cursor()
-
-    # Check if the account exists
-    query = "SELECT balance FROM person WHERE pin = %s"
-    cursor.execute(query, (pin,))
-    result = cursor.fetchone()
-
-    if result:
-        balance = result[0]
-
-        if balance >= amount:
-            # Update the account balance
-            balance = balance - amount
-            update_query = "UPDATE person SET balance = %s WHERE pin = %s"
-            cursor.execute(update_query, (balance, pin))
-            db.commit()
-
-        else:
-            # Insufficient balance
-            withdrawFrame_message.config(text="Insufficient balance!")
-    else:
-        # Account not found
-        withdrawFrame_message.config(text="Account not found!")
-
-    # Close the database connection
-    cursor.close()
-    db.close()
-
 
 def transcomp():
     show_frame(transcompFrame)
@@ -214,7 +248,6 @@ transferFrame = tk.Frame(window)
 mainFrame = tk.Frame(window)
 loginFrame = tk.Frame(window)
 
-
 # Load the image file using PIL
 image = Image.open("logo.png")
 
@@ -232,7 +265,6 @@ style.configure("TButton", font=("Arial", 20))
 for frame in (transcompFrame, transactionFrame, loginFrame, mainFrame, depositFrame, withdrawFrame, balanceFrame, transferFrame):
     frame.grid(row=0, column=0, sticky='nsew')
 
-
 # loginFrame
 loginFrame.configure(background="#023048")
 # logo
@@ -246,7 +278,7 @@ loginFrame_inp.grid(row=1, column=0, columnspan=6, sticky="n", ipady=10)
 loginFrame_inp.grid_rowconfigure(0, weight=1)
 loginFrame_inp.grid_columnconfigure(0, weight=1)
 
-loginFrame_accname = tk.Label(loginFrame, text="Please enter your PIN", bg="#023048", fg="white")
+loginFrame_accname = tk.Label(loginFrame, text="Please enter your PIN", fg="white", bg="#023048", font=("Arial", 14, "bold"))
 loginFrame_accname.grid(row=2, column=0, columnspan=6, sticky="n")
 loginFrame_accname.grid_rowconfigure(0, weight=1)
 loginFrame_accname.grid_columnconfigure(0, weight=1)
@@ -286,8 +318,8 @@ withdrawFrame.grid_rowconfigure(0, weight=1)
 withdrawFrame.grid_columnconfigure(0, weight=1)
 
 withdrawFrame_ins = tk.Label(withdrawFrame,
-                             text="Select an amount OR enter \n another amount and press ENTER to withdraw", fg="white",
-                             bg="#023048", font=("Arial", 20))
+                             text="Select an amount OR enter \n another amount and press ENTER to withdraw. \n Press BACKSPACE to return to the homepage.", fg="white",
+                             bg="#023048", font=("Arial", 20, "bold"))
 withdrawFrame_ins.grid(row=1, column=0, columnspan=6, sticky="n")
 withdrawFrame_ins.grid_rowconfigure(0, weight=1)
 withdrawFrame_ins.grid_columnconfigure(0, weight=1)
@@ -296,6 +328,8 @@ withdrawFrame_inp = tk.Entry(withdrawFrame, justify='center', font=("Arial", 15)
 withdrawFrame_inp.grid(row=2, column=0, columnspan=6, sticky="n", pady=20, ipady=20, ipadx=100)
 withdrawFrame_inp.grid_rowconfigure(0, weight=1)
 withdrawFrame_inp.grid_columnconfigure(0, weight=1)
+withdrawFrame_inp.bind('<Return>', handle_withdraw)
+withdrawFrame_inp.bind('<BackSpace>', withdraw_frame)
 
 withdrawFrame_b1 = tk.Button(withdrawFrame, text="₱1,000.00", width=15, command=lambda: withdraw(1000))
 withdrawFrame_b1.grid(row=4, column=0, sticky="nw", ipadx=120, ipady=20, pady=1)
@@ -317,7 +351,7 @@ depositFrame_logo.grid(row=0, column=0, columnspan=5, sticky="nw")
 depositFrame.grid_rowconfigure(0, weight=1)
 depositFrame.grid_columnconfigure(0, weight=1)
 
-depositFrame_ins = tk.Label(depositFrame, text="Select an amount OR enter \n another amount and press ENTER to deposit",
+depositFrame_ins = tk.Label(depositFrame, text="Select an amount OR enter \n another amount and press ENTER to deposit. \n Press BACKSPACE to return to the homepage.",
                             fg="white", bg="#023048", font=("Arial", 20, "bold"))
 depositFrame_ins.grid(row=1, column=0, columnspan=8, sticky="n")
 depositFrame_ins.grid_rowconfigure(0, weight=1)
@@ -327,6 +361,8 @@ depositFrame_inp = tk.Entry(depositFrame, justify='center', font=("Arial", 15))
 depositFrame_inp.grid(row=2, column=0, columnspan=8, sticky="n", pady=20, ipady=20, ipadx=100)
 depositFrame_inp.grid_rowconfigure(0, weight=1)
 depositFrame_inp.grid_columnconfigure(0, weight=1)
+depositFrame_inp.bind('<Return>', handle_deposit)
+depositFrame_inp.bind('<BackSpace>', deposit_frame)
 
 depositFrame_b1 = tk.Button(depositFrame, text="₱1,000.00", width=15, command=lambda: deposit(1000))
 depositFrame_b1.grid(row=4, column=0, sticky="nw", ipadx=120, ipady=20, pady=1)
@@ -381,6 +417,7 @@ transferFrame_inp = ttk.Entry(transferFrame, justify='center', width=70)
 transferFrame_inp.grid(row=1, column=0, columnspan=6, sticky="n", ipady=10)
 transferFrame_inp.grid_rowconfigure(0, weight=1)
 transferFrame_inp.grid_columnconfigure(0, weight=1)
+transferFrame_inp.bind('<BackSpace>', transfer_frame)
 
 transferFrame_accname = tk.Label(transferFrame, text="Account Name", bg="#023048", fg="white", font=('Arial 11 bold'))
 transferFrame_accname.grid(row=2, column=0, columnspan=6, sticky="n")
@@ -391,6 +428,7 @@ transferFrame_inp1 = ttk.Entry(transferFrame, justify='center', width=70)
 transferFrame_inp1.grid(row=3, column=0, columnspan=6, sticky="n", ipady=10)
 transferFrame_inp1.grid_rowconfigure(0, weight=1)
 transferFrame_inp1.grid_columnconfigure(0, weight=1)
+transferFrame_inp1.bind('<BackSpace>', transfer1_frame)
 
 transferFrame_accnum = tk.Label(transferFrame, text="Account Number", bg="#023048", fg="white", font=('Arial 11 bold'))
 transferFrame_accnum.grid(row=4, column=0, columnspan=6, sticky="n")
@@ -401,6 +439,7 @@ transferFrame_inp2 = ttk.Entry(transferFrame, justify='center', width=70)
 transferFrame_inp2.grid(row=5, column=0, columnspan=6, sticky="n", ipady=10)
 transferFrame_inp2.grid_rowconfigure(0, weight=1)
 transferFrame_inp2.grid_columnconfigure(0, weight=1)
+transferFrame_inp2.bind('<BackSpace>', transfer2_frame)
 
 transferFrame_amount = tk.Label(transferFrame, text="Enter Amount to Transfer", bg="#023048", fg="white",
                                 font=('Arial 11 bold'))
@@ -432,10 +471,10 @@ transactionFrame_ybutton = ttk.Button(transactionFrame, text="YES", width=15, co
 transactionFrame_ybutton.grid(row=2, column=0,sticky="w", ipadx=0, ipady=10, pady=10)
 
 transactionFrame_nbutton = ttk.Button(transactionFrame, text="NO", width=15, command=lambda: transcomp())
-transactionFrame_nbutton.grid(row=2, column=1, sticky="e", ipadx=10, ipady=10, pady=100)
+transactionFrame_nbutton.grid(row=2, column=1, columnspan=6, sticky="e", ipadx=10, ipady=10, pady=100)
 
 
-# transactionFrame
+# transcompleteFrame
 transcompFrame.configure(background="#023048")
 # logo
 transcompFrame_logo = tk.Label(transcompFrame, image=logo_image, borderwidth=0, highlightthickness=0)
@@ -449,3 +488,4 @@ transcompFrame_question.grid_rowconfigure(0, weight=1)
 transcompFrame_question.grid_columnconfigure(0, weight=1)
 
 window.mainloop()
+
